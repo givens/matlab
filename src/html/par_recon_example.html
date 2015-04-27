@@ -66,8 +66,8 @@ table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px soli
 
 
 
-  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">Parallel Beam Reconstruction Example</a></li><li><a href="#2">Phantom</a></li><li><a href="#3">Geometries</a></li><li><a href="#4">Generate sinogram</a></li><li><a href="#5">Display phantom and sinogram</a></li><li><a href="#6">Initialize</a></li><li><a href="#7">Iterative reconstruction with SD</a></li></ul></div><h2>Parallel Beam Reconstruction Example<a name="1"></a></h2><p>Generate phantom, generic geometries, and produce a projection. Perform simple iterative reconstruction.</p><pre class="codeinput">close <span class="string">all</span>;
-</pre><h2>Phantom<a name="2"></a></h2><pre class="codeinput">x = phantom(128,<span class="string">'Shepp-Logan'</span>);
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">Parallel Beam Reconstruction Example</a></li><li><a href="#2">Phantom</a></li><li><a href="#3">Geometries</a></li><li><a href="#4">Generate sinogram</a></li><li><a href="#5">Finish forward model</a></li><li><a href="#6">Convert</a></li><li><a href="#7">Display phantom and sinogram</a></li><li><a href="#8">Initialize</a></li><li><a href="#9">Iterative reconstruction with SD</a></li></ul></div><h2>Parallel Beam Reconstruction Example<a name="1"></a></h2><p>Generate phantom, generic geometries, and produce a noiseless projection. Perform simple iterative reconstruction.</p><pre class="codeinput">close <span class="string">all</span>;
+</pre><h2>Phantom<a name="2"></a></h2><pre class="codeinput">x = phantom(128,<span class="string">'Shepp-Logan'</span>)/5;
 </pre><h2>Geometries<a name="3"></a></h2><p>Image and sinogram geometries</p><pre class="codeinput"><span class="comment">% Image geometry</span>
 nx = 128;
 ny = 128;
@@ -98,21 +98,27 @@ sgr = sino_geom(type,<span class="keyword">...</span>
 </pre><h2>Generate sinogram<a name="4"></a></h2><pre class="codeinput">table = {<span class="string">'square/strip'</span>,<span class="string">'Ltab'</span>,[1000],<span class="string">'strip_width'</span>,[dr]}; <span class="comment">% strip integral</span>
 nthread = jf(<span class="string">'ncore'</span>); <span class="comment">% number of threads in my computer</span>
 G = Gtomo2_table(sgr,ig,table,<span class="string">'nthread'</span>,nthread);
-y = G*x;
-</pre><h2>Display phantom and sinogram<a name="5"></a></h2><pre class="codeinput">figure; im(x,[0 .2]);
+p = G*x;
+</pre><h2>Finish forward model<a name="5"></a></h2><pre class="codeinput">r = 0;
+b = 2000000;
+z = b*exp(-p)+r;
+w = z + sqrt(z).*randn(size(z)); <span class="comment">% Simulate poisson</span>
+</pre><h2>Convert<a name="6"></a></h2><pre class="codeinput">y = log((w-r)/b);
+y(y&lt;0) = 0;
+</pre><h2>Display phantom and sinogram<a name="7"></a></h2><pre class="codeinput">figure; im(x,[0 .2]);
 figure; im(y);
-</pre><img vspace="5" hspace="5" src="par_recon_example_01.png" alt=""> <img vspace="5" hspace="5" src="par_recon_example_02.png" alt=""> <h2>Initialize<a name="6"></a></h2><pre class="codeinput">o = ones(128);
+</pre><img vspace="5" hspace="5" src="par_recon_example_01.png" alt=""> <img vspace="5" hspace="5" src="par_recon_example_02.png" alt=""> <h2>Initialize<a name="8"></a></h2><pre class="codeinput">o = ones(128);
 o2 = G'*(G*o);
 m = mean(o2(:));
 x0 = (1/m)*G'*y;
-</pre><h2>Iterative reconstruction with SD<a name="7"></a></h2><pre class="codeinput"><span class="comment">%alpha = 6e-5;</span>
+</pre><h2>Iterative reconstruction with SD<a name="9"></a></h2><pre class="codeinput"><span class="comment">%alpha = 6e-5;</span>
 N = 50;
 xhat = x0;
 <span class="keyword">for</span> k = 1:N
     r = y-G*xhat;
     gr = G'*r;
     alpha = (r(:)'*r(:))/(gr(:)'*gr(:));
-    xhat = xhat + alpha*G'*r;
+    xhat = xhat + alpha*gr;
 <span class="keyword">end</span>
 
 err = x - xhat;
@@ -124,13 +130,13 @@ figure; im(err,[-.1 .1]);
 </pre><img vspace="5" hspace="5" src="par_recon_example_03.png" alt=""> <img vspace="5" hspace="5" src="par_recon_example_04.png" alt=""> <p class="footer"><br><a href="http://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2014b</a><br></p></div><!--
 ##### SOURCE BEGIN #####
 %% Parallel Beam Reconstruction Example
-% Generate phantom, generic geometries, and produce a projection.
+% Generate phantom, generic geometries, and produce a noiseless projection.
 % Perform simple iterative reconstruction.
 
 close all;
 
 %% Phantom
-x = phantom(128,'Shepp-Logan');
+x = phantom(128,'Shepp-Logan')/5;
 
 %% Geometries
 % Image and sinogram geometries
@@ -167,7 +173,17 @@ sgr = sino_geom(type,...
 table = {'square/strip','Ltab',[1000],'strip_width',[dr]}; % strip integral
 nthread = jf('ncore'); % number of threads in my computer
 G = Gtomo2_table(sgr,ig,table,'nthread',nthread);
-y = G*x;
+p = G*x;
+
+%% Finish forward model
+r = 0;
+b = 2000000;
+z = b*exp(-p)+r;
+w = z + sqrt(z).*randn(size(z)); % Simulate poisson
+
+%% Convert
+y = log((w-r)/b);
+y(y<0) = 0;
 
 %% Display phantom and sinogram
 figure; im(x,[0 .2]);
@@ -187,7 +203,7 @@ for k = 1:N
     r = y-G*xhat;
     gr = G'*r;
     alpha = (r(:)'*r(:))/(gr(:)'*gr(:));
-    xhat = xhat + alpha*G'*r;
+    xhat = xhat + alpha*gr;
 end
 
 err = x - xhat;

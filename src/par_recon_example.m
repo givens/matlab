@@ -1,5 +1,5 @@
 %% Parallel Beam Reconstruction Example
-% Generate phantom, generic geometries, and produce a projection.
+% Generate phantom, generic geometries, and produce a noiseless projection.
 % Perform simple iterative reconstruction.
 
 close all;
@@ -42,7 +42,19 @@ sgr = sino_geom(type,...
 table = {'square/strip','Ltab',[1000],'strip_width',[dr]}; % strip integral
 nthread = jf('ncore'); % number of threads in my computer
 G = Gtomo2_table(sgr,ig,table,'nthread',nthread);
-y = G*x;
+p = G*x;
+
+%% Finish forward model
+r = 0;
+b = 100000; % who knows?
+z = b*exp(-p)+r;
+%w = z + sqrt(z).*randn(size(z)); % Simulate large value Poisson
+w = z;
+
+%% Convert
+y = -log((w-r)/b);
+y(im(y)~=0)=max(y(:));
+y = abs(y);
 
 %% Display phantom and sinogram
 figure; im(x,[0 .2]);
@@ -62,7 +74,7 @@ for k = 1:N
     r = y-G*xhat;
     gr = G'*r;
     alpha = (r(:)'*r(:))/(gr(:)'*gr(:));
-    xhat = xhat + alpha*G'*r;
+    xhat = xhat + alpha*gr;
 end
 
 err = x - xhat;
